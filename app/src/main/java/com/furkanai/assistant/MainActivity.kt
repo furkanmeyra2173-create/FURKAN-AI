@@ -470,7 +470,7 @@ private fun SettingsScreen(
             }
 
             Text("Ses profili", color = Color.White, fontWeight = FontWeight.Bold)
-            VoicePreset.values().chunked(3).forEach { group ->
+            VoicePreset.values().toList().chunked(3).forEach { group ->
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     group.forEach { preset ->
                         FilterChip(selected = voicePreset == preset.name, onClick = { onVoicePresetChange(preset.name) }, label = { Text(preset.title) })
