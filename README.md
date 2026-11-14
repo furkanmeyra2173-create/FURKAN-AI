@@ -1,45 +1,33 @@
 # FURKAN AI
 
-FURKAN AI is a multilingual Android personal AI assistant built with Kotlin and Jetpack Compose.
+A multilingual Android assistant built with Kotlin and Jetpack Compose.
 
-## Version 0.2.0
+## Version 0.3.0
+- BYOK support for Google Gemini, OpenAI, Grok (xAI) and OpenRouter
+- API keys encrypted locally using Android Keystore and AES-GCM
+- Manual and automatic provider selection
+- Chat history and user-controlled memories stored locally
+- Built-in and custom assistant personalities: Jarvis, Hacker, Teacher and Coding
+- Android text-to-speech voices plus Natural, Jarvis, Hacker/Deep, Robotic, Energetic and Calm presets
+- Speech recognition input
+- Provider-backed web search and research-style responses
+- Android assistant role eligibility using ACTION_ASSIST
+- Local reminders, notifications, device status and launcher app shortcuts
 
-- Chat with the user's own API key
-- Provider selection: Google Gemini, OpenAI, Grok (xAI), and OpenRouter
-- AES-GCM encrypted API-key storage backed by Android Keystore
-- Direct HTTPS requests from the phone to the selected AI provider
-- Speech-to-text through the Android speech recognition service
-- Natural and Jarvis-style robotic text-to-speech using the device TTS engine
-- User-editable model ID for each provider
+## API keys
+Users supply and pay for their own provider API keys. No shared developer key is included. Keys are encrypted at rest with Android Keystore and sent directly to the provider over HTTPS. A compromised or rooted device may still expose secrets.
 
-## API key setup
+## Android default assistant
+On Android 10+, choose Tools > Make default assistant. Android will display its own role confirmation. This app handles ACTION_ASSIST; it does not implement an always-listening wake word or a full VoiceInteractionService session. Supported invocation gestures vary by device and OS version.
 
-The user creates their own API key with the chosen provider, selects that provider in FURKAN AI, pastes the key into API Settings, saves it, and optionally runs a connection test.
+## Voice profiles
+Presets change pitch and speaking rate of the chosen installed Android TTS voice. Available voices depend on installed TTS engine packs. Hacker/Deep is a style preset, not a separate recorded voice. For richer voices, install a compatible voice pack via Android text-to-speech settings.
 
-FURKAN AI does not include a shared developer API key and does not proxy requests through a FURKAN AI server. The user's key is encrypted at rest with Android Keystore and sent directly to the selected provider over HTTPS when a request is made. API usage and billing are controlled by that provider.
+## Web search and cost
+Web search uses the chosen provider's own search tool and can add provider charges. Deep research prompts automatically request search where the provider supports it. OpenRouter uses its web-search server tool.
 
-Local encryption reduces exposure at rest, but it cannot guarantee protection on a compromised or modified device. Never put a shared API key in the APK or source code.
-
-## Planned Jarvis-style milestones
-
-1. Persistent conversation history and user-controlled memory
-2. Custom assistants with names, voices, personalities, and instructions
-3. Live web search with source links and deep-research reports
-4. Reminders, calendar events, notes, and local file library
-5. User-approved phone actions such as opening apps, calls, and message drafts
-6. Image generation and camera/document understanding
-7. Home-screen widget, quick actions, and device status dashboard
-
-Some Android actions require runtime permissions or explicit user confirmation and may be restricted by the Android version or manufacturer.
+## Device tools and reminders
+App opening is user-initiated. Device status displays battery, RAM and app data-partition storage. Reminders use Android's inexact alarm scheduling and notification permission; battery optimization may delay delivery. Secure system settings are not changed silently.
 
 ## Build
-
-Open the Actions tab and run Build FURKAN AI APK, or push a commit to main.
-
-When the workflow succeeds, download the FURKAN-AI-debug artifact.
-
-## Project
-
-- Package: com.furkanai.assistant
-- Minimum Android: 8.0 (API 26)
-- Build JDK: 17
+Push to main or run the GitHub Actions workflow. Download the FURKAN-AI-debug artifact after a successful run.
