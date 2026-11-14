@@ -101,6 +101,7 @@ object AiApiClient {
             .put("model", model)
             .put("instructions", SYSTEM_PROMPT)
             .put("input", transcript)
+            .put("store", false)
 
         return extractResponsesText(
             postJson(endpoint, key, body, useGeminiHeader = false)
