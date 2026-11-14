@@ -9,6 +9,7 @@ object LocalData {
     private const val MESSAGES = "messages"
     private const val MEMORIES = "memories"
     private const val REMINDERS = "reminders"
+    private const val NOTES = "notes"
     private const val PROFILE_NAME = "profile_name"
     private const val PROFILE_PROMPT = "profile_prompt"
 
@@ -84,6 +85,40 @@ object LocalData {
             .putString(PROFILE_NAME, name.trim().ifBlank { "Jarvis" })
             .putString(PROFILE_PROMPT, prompt.trim())
             .apply()
+    }
+
+
+    data class Note(val id: Int, val title: String, val body: String)
+
+    fun notes(context: Context): List<Note> {
+        return try {
+            val array = JSONArray(prefs(context).getString(NOTES, "[]") ?: "[]")
+            buildList {
+                for (i in 0 until array.length()) {
+                    val item = array.optJSONObject(i) ?: continue
+                    add(Note(item.optInt("id"), item.optString("title"), item.optString("body")))
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun addNote(context: Context, title: String, body: String) {
+        val values = (notes(context) + Note((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), title.trim(), body.trim())).takeLast(100)
+        val array = JSONArray()
+        values.forEach { note ->
+            array.put(JSONObject().put("id", note.id).put("title", note.title).put("body", note.body))
+        }
+        prefs(context).edit().putString(NOTES, array.toString()).apply()
+    }
+
+    fun deleteNote(context: Context, id: Int) {
+        val array = JSONArray()
+        notes(context).filterNot { it.id == id }.forEach { note ->
+            array.put(JSONObject().put("id", note.id).put("title", note.title).put("body", note.body))
+        }
+        prefs(context).edit().putString(NOTES, array.toString()).apply()
     }
 
     fun reminders(context: Context): List<Reminder> {
