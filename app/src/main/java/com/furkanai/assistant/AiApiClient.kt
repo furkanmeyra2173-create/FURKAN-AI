@@ -23,13 +23,15 @@ object AiApiClient {
         apiKey: String,
         history: List<ChatMessage>,
         systemPrompt: String = DEFAULT_PROMPT,
-        webSearch: Boolean = false
+        webSearch: Boolean = false,
+        imageBase64: String? = null,
+        imageMime: String = "image/jpeg"
     ): String = withContext(Dispatchers.IO) {
         require(provider != AiProvider.AUTO) { "Otomatik mod önce sağlayıcı seçmeli." }
         require(apiKey.isNotBlank()) { "API anahtarı eklenmemiş." }
         require(model.isNotBlank()) { "Model adı boş olamaz." }
         when (provider) {
-            AiProvider.GEMINI -> gemini(model, apiKey, history, systemPrompt, webSearch)
+            AiProvider.GEMINI -> gemini(model, apiKey, history, systemPrompt, webSearch, imageBase64, imageMime)
             AiProvider.OPENAI -> responses("https://api.openai.com/v1/responses", model, apiKey, history, systemPrompt, webSearch)
             AiProvider.GROK -> responses("https://api.x.ai/v1/responses", model, apiKey, history, systemPrompt, webSearch)
             AiProvider.OPENROUTER -> openRouter(model, apiKey, history, systemPrompt, webSearch)
@@ -37,11 +39,23 @@ object AiApiClient {
         }
     }
 
-    private fun gemini(model: String, key: String, history: List<ChatMessage>, prompt: String, search: Boolean): String {
+    private fun gemini(
+        model: String, key: String, history: List<ChatMessage>, prompt: String, search: Boolean,
+        imageBase64: String?, imageMime: String
+    ): String {
         val contents = JSONArray()
-        history.takeLast(32).forEach {
-            contents.put(JSONObject().put("role", if (it.role == "assistant") "model" else "user")
-                .put("parts", JSONArray().put(JSONObject().put("text", it.text))))
+        val recent = history.takeLast(32)
+        recent.forEachIndexed { index, message ->
+            val parts = JSONArray().put(JSONObject().put("text", message.text))
+            if (imageBase64 != null && index == recent.lastIndex && message.role == "user") {
+                parts.put(
+                    JSONObject().put(
+                        "inlineData",
+                        JSONObject().put("mimeType", imageMime).put("data", imageBase64)
+                    )
+                )
+            }
+            contents.put(JSONObject().put("role", if (message.role == "assistant") "model" else "user").put("parts", parts))
         }
         val body = JSONObject()
             .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", prompt))))
@@ -68,11 +82,17 @@ object AiApiClient {
 
     private fun responses(
         endpoint: String, model: String, key: String, history: List<ChatMessage>,
-        prompt: String, search: Boolean
+        prompt: String, search: Boolean, imageBase64: String?, imageMime: String
     ): String {
         val input = JSONArray()
-        history.takeLast(32).forEach {
-            input.put(JSONObject().put("role", if (it.role == "assistant") "assistant" else "user").put("content", it.text))
+        val recent = history.takeLast(32)
+        recent.forEachIndexed { index, message ->
+            val content = if (imageBase64 != null && index == recent.lastIndex && message.role == "user") {
+                JSONArray()
+                    .put(JSONObject().put("type", "input_text").put("text", message.text))
+                    .put(JSONObject().put("type", "input_image").put("image_url", "data:$imageMime;base64,$imageBase64"))
+            } else message.text
+            input.put(JSONObject().put("role", if (message.role == "assistant") "assistant" else "user").put("content", content))
         }
         val body = JSONObject().put("model", model).put("instructions", prompt)
             .put("input", input).put("store", false)
@@ -81,11 +101,20 @@ object AiApiClient {
     }
 
     private fun openRouter(
-        model: String, key: String, history: List<ChatMessage>, prompt: String, search: Boolean
+        model: String, key: String, history: List<ChatMessage>, prompt: String, search: Boolean,
+        imageBase64: String?, imageMime: String
     ): String {
         val messages = JSONArray().put(JSONObject().put("role", "system").put("content", prompt))
-        history.takeLast(32).forEach {
-            messages.put(JSONObject().put("role", if (it.role == "assistant") "assistant" else "user").put("content", it.text))
+        val recent = history.takeLast(32)
+        recent.forEachIndexed { index, message ->
+            val content = if (imageBase64 != null && index == recent.lastIndex && message.role == "user") {
+                JSONArray()
+                    .put(JSONObject().put("type", "text").put("text", message.text))
+                    .put(JSONObject().put("type", "image_url").put(
+                        "image_url", JSONObject().put("url", "data:$imageMime;base64,$imageBase64")
+                    ))
+            } else message.text
+            messages.put(JSONObject().put("role", if (message.role == "assistant") "assistant" else "user").put("content", content))
         }
         val body = JSONObject().put("model", model).put("messages", messages).put("max_tokens", 4096)
         if (search) body.put("tools", JSONArray().put(JSONObject().put("type", "openrouter:web_search")))
