@@ -32,9 +32,9 @@ object AiApiClient {
         require(model.isNotBlank()) { "Model adı boş olamaz." }
         when (provider) {
             AiProvider.GEMINI -> gemini(model, apiKey, history, systemPrompt, webSearch, imageBase64, imageMime)
-            AiProvider.OPENAI -> responses("https://api.openai.com/v1/responses", model, apiKey, history, systemPrompt, webSearch)
-            AiProvider.GROK -> responses("https://api.x.ai/v1/responses", model, apiKey, history, systemPrompt, webSearch)
-            AiProvider.OPENROUTER -> openRouter(model, apiKey, history, systemPrompt, webSearch)
+            AiProvider.OPENAI -> responses("https://api.openai.com/v1/responses", model, apiKey, history, systemPrompt, webSearch, imageBase64, imageMime)
+            AiProvider.GROK -> responses("https://api.x.ai/v1/responses", model, apiKey, history, systemPrompt, webSearch, imageBase64, imageMime)
+            AiProvider.OPENROUTER -> openRouter(model, apiKey, history, systemPrompt, webSearch, imageBase64, imageMime)
             AiProvider.AUTO -> error("Otomatik mod yönlendirilmeden kullanılamaz.")
         }
     }
