@@ -5,6 +5,10 @@ import android.app.Activity
 import android.app.role.RoleManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.net.Uri
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -526,6 +530,15 @@ private fun ToolsScreen(
     var reminderDelay by remember { mutableStateOf("10") }
     var reminders by remember { mutableStateOf(LocalData.reminders(context)) }
     var toolStatus by remember { mutableStateOf("") }
+    var noteTitle by remember { mutableStateOf("") }
+    var noteBody by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf(LocalData.notes(context)) }
+    var calendarTitle by remember { mutableStateOf("") }
+    var calendarDescription by remember { mutableStateOf("") }
+    var calendarDelay by remember { mutableStateOf("15") }
+    var imagePrompt by remember { mutableStateOf("") }
+    var imageGenerating by remember { mutableStateOf(false) }
+    val toolScope = rememberCoroutineScope()
     val apps = remember { DeviceTools.launchableApps(context).take(50) }
     val profiles = listOf(
         "Jarvis" to "Calm, polished, respectful and proactive personal assistant.",
@@ -619,6 +632,123 @@ private fun ToolsScreen(
             }
             if (toolStatus.isNotBlank()) Text(toolStatus, color = Cyan, fontSize = 12.sp)
 
+
+            Text("Not defteri", color = Color.White, fontWeight = FontWeight.Bold)
+            OutlinedTextField(
+                value = noteTitle,
+                onValueChange = { noteTitle = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Not başlığı") },
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = noteBody,
+                onValueChange = { noteBody = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Not içeriği") },
+                minLines = 2
+            )
+            Button(
+                onClick = {
+                    LocalData.addNote(context, noteTitle.ifBlank { "Not" }, noteBody)
+                    notes = LocalData.notes(context)
+                    noteTitle = ""
+                    noteBody = ""
+                    toolStatus = "Not bu telefona kaydedildi."
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = noteBody.isNotBlank()
+            ) { Text("Notu kaydet") }
+            notes.forEach { note ->
+                Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
+                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(note.title, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text(note.body, color = Muted, fontSize = 12.sp)
+                        }
+                        TextButton(onClick = {
+                            LocalData.deleteNote(context, note.id)
+                            notes = LocalData.notes(context)
+                        }) { Text("Sil", color = Color(0xFFFF9999)) }
+                    }
+                }
+            }
+
+            Text("Takvim etkinliği", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("Etkinlik bilgilerini Android Takvim uygulamasına taslak olarak aktarır; kaydetmeyi sen onaylarsın.", color = Muted, fontSize = 12.sp)
+            OutlinedTextField(
+                value = calendarTitle,
+                onValueChange = { calendarTitle = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Etkinlik adı") },
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = calendarDescription,
+                onValueChange = { calendarDescription = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Açıklama (isteğe bağlı)") }
+            )
+            OutlinedTextField(
+                value = calendarDelay,
+                onValueChange = { calendarDelay = it.filter(Char::isDigit).take(5) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Kaç dakika sonra başlasın?") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true
+            )
+            OutlinedButton(
+                onClick = {
+                    try {
+                        DeviceTools.openCalendarEvent(
+                            context,
+                            calendarTitle,
+                            calendarDescription,
+                            calendarDelay.toInt()
+                        )
+                        toolStatus = "Takvim taslağı açıldı. Kaydetmek için takvimde onayla."
+                    } catch (error: Exception) {
+                        toolStatus = error.message ?: "Takvim açılamadı."
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = calendarTitle.isNotBlank() && (calendarDelay.toIntOrNull() ?: 0) >= 0
+            ) { Text("Takvim taslağını aç") }
+
+            Text("AI görsel üretimi", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("OpenAI anahtarın gerekir. Görsel üretimi ayrıca ücretlendirilebilir.", color = Muted, fontSize = 12.sp)
+            OutlinedTextField(
+                value = imagePrompt,
+                onValueChange = { imagePrompt = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Nasıl bir görsel oluşturalım?") },
+                minLines = 2
+            )
+            Button(
+                onClick = {
+                    val key = ApiKeyVault.read(context, AiProvider.OPENAI)
+                    if (key.isNullOrBlank()) {
+                        toolStatus = "Önce Ayarlar bölümünden OpenAI API anahtarını ekle."
+                    } else {
+                        imageGenerating = true
+                        toolStatus = "Görsel oluşturuluyor; işlem birkaç dakika sürebilir."
+                        toolScope.launch {
+                            try {
+                                ImageGenerationClient.generateAndSave(context, key, imagePrompt)
+                                toolStatus = "Görsel Galeri > Pictures/FURKAN AI klasörüne kaydedildi."
+                                imagePrompt = ""
+                            } catch (error: Exception) {
+                                toolStatus = error.message ?: "Görsel üretimi başarısız."
+                            } finally {
+                                imageGenerating = false
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = imagePrompt.isNotBlank() && !imageGenerating
+            ) { Text(if (imageGenerating) "Görsel hazırlanıyor..." else "Görsel oluştur ve kaydet") }
+
             Text("Cihaz durumu", color = Color.White, fontWeight = FontWeight.Bold)
             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
                 Text(DeviceTools.deviceSummary(context), Modifier.padding(14.dp), color = Muted, fontSize = 13.sp)
@@ -662,6 +792,43 @@ private fun ChatScreen(
     var sending by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf("") }
     var webSearch by remember { mutableStateOf(webSearchDefault) }
+    var pendingImageData by remember { mutableStateOf<String?>(null) }
+    var pendingImageMime by remember { mutableStateOf("image/jpeg") }
+
+    fun setImageFromUri(uri: Uri?) {
+        if (uri == null) return
+        try {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: throw IllegalStateException("Görsel okunamadı.")
+            if (bytes.size > 5 * 1024 * 1024) {
+                notice = "Görsel 5 MB'dan küçük olmalı."
+                return
+            }
+            pendingImageData = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            pendingImageMime = context.contentResolver.getType(uri) ?: "image/jpeg"
+            notice = "Görsel eklendi. Gönderdiğinde AI görseli analiz edecek."
+        } catch (error: Exception) {
+            notice = error.message ?: "Görsel eklenemedi."
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        setImageFromUri(uri)
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        if (bitmap != null) {
+            try {
+                val output = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 82, output)
+                val bytes = output.toByteArray()
+                pendingImageData = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                pendingImageMime = "image/jpeg"
+                notice = "Kamera görüntüsü eklendi."
+            } catch (error: Exception) {
+                notice = error.message ?: "Kamera görüntüsü eklenemedi."
+            }
+        }
+    }
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -679,15 +846,18 @@ private fun ChatScreen(
     }
 
     fun sendMessage() {
-        val text = input.trim()
+        val typedText = input.trim()
+        val attachment = pendingImageData
+        val text = typedText.ifBlank { if (attachment != null) "Bu görseli analiz et ve açıkla." else "" }
         if (text.isBlank() || sending) return
         var history = messages + ChatMessage("user", text)
+        pendingImageData = null
         messages = history
         LocalData.saveMessages(context, history)
         input = ""
         notice = ""
 
-        val localResponse = DeviceTools.handleOfflineCommand(context, text)
+        val localResponse = if (attachment == null) DeviceTools.handleOfflineCommand(context, text) else null
         if (localResponse != null) {
             messages = history + ChatMessage("assistant", localResponse)
             LocalData.saveMessages(context, messages)
@@ -714,7 +884,11 @@ private fun ChatScreen(
         sending = true
         scope.launch {
             try {
-                val answer = AiApiClient.reply(actual, actualModel, key, history, prompt, shouldSearch)
+                val answer = AiApiClient.reply(
+                    actual, actualModel, key, history, prompt, shouldSearch,
+                    imageBase64 = attachment,
+                    imageMime = pendingImageMime
+                )
                 messages = messages + ChatMessage("assistant", answer)
                 LocalData.saveMessages(context, messages)
                 if (autoMode) notice = "Otomatik seçim: " + actual.title
@@ -762,7 +936,27 @@ private fun ChatScreen(
         }
         if (notice.isNotBlank()) Text(notice, color = Color(0xFFFFC16E), fontSize = 11.sp, modifier = Modifier.padding(4.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            OutlinedTextField(value = input, onValueChange = { input = it }, modifier = Modifier.weight(1f), placeholder = { Text("Komutunu yaz...") }, maxLines = 4)
+            Column(Modifier.weight(1f)) {
+                if (pendingImageData != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Görsel eklendi (sohbette saklanmayacak)", color = Cyan, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { pendingImageData = null; notice = "Görsel kaldırıldı." }) {
+                            Text("Kaldır", color = Color(0xFFFF9999), fontSize = 10.sp)
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Komutunu yaz...") },
+                    maxLines = 4
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { galleryLauncher.launch("image/*") }) { Text("Galeri", color = Cyan, fontSize = 11.sp) }
+                    TextButton(onClick = { cameraLauncher.launch(null) }) { Text("Kamera", color = Cyan, fontSize = 11.sp) }
+                }
+            }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 TextButton(onClick = {
                     if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
@@ -770,7 +964,7 @@ private fun ChatScreen(
                     } else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 }) { Text("🎙", color = Cyan, fontSize = 20.sp) }
                 Button(
-                    onClick = { sendMessage() }, enabled = !sending && input.isNotBlank(),
+                    onClick = { sendMessage() }, enabled = !sending && (input.isNotBlank() || pendingImageData != null),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) { Text("Gönder") }
             }
